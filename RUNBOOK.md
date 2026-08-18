@@ -1,132 +1,131 @@
 # RUNBOOK
 
-Concrete order of operations, with realistic time and disk estimates.
+Everything runs locally. No cloud, no cost.
 
-## 0. Where to run
+## Requirements
 
-| | Cores | RAM | Disk | Wall time |
-|---|---|---|---|---|
-| Stage 1 (ATAC from FASTQ) | 8–16 | 32 GB | ~150 GB | 3–6 h |
-| Stage 2 (Hi-C features) | 4 | 16 GB | ~30 GB | 30–60 min |
-| Stage 3 (integration) | 2 | 16 GB | — | 20–40 min |
+- ~40 GB free disk during the run; ~5 MB kept afterward
+- A few GB of RAM (cooler reads matrix ranges out of HDF5)
+- macOS (Apple Silicon or Intel) or Linux
+- No admin rights needed — conda installs into your home directory
 
-Stages 2–3 run on a laptop. Stage 1 wants a workstation or a cloud VM
-(`c6i.4xlarge` or similar, a few dollars for the run). Use compute you own —
-a personal portfolio project doesn't belong on an employer's cluster.
+Total wall time: about 2 hours, most of it downloading.
 
 ## 1. Environment
 
-```bash
-git clone <your-repo-url> chromatin-3d && cd chromatin-3d
-mamba env create -f environment.yml     # or: conda env create -f environment.yml
+On Apple Silicon, create the environment under x86 emulation. Several bioconda
+packages here (`macs2` in particular) have no arm64 build, and the emulation
+penalty is irrelevant now that read alignment is out of scope.
+
+```
+CONDA_SUBDIR=osx-64 mamba env create -f environment.yml
 conda activate chromatin-3d
-macs2 --version && cooler --version && pairtools --version
+conda config --env --set subdir osx-64
 ```
 
-## 2. References (~25 GB, do this first — it's the long pole)
+On Intel Mac or Linux, drop the `CONDA_SUBDIR` prefix and the last line.
 
-```bash
-mkdir -p refs && cd refs
+Verify:
 
-curl -LO https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.chrom.sizes
-curl -LO https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz
-gunzip hg38.fa.gz && samtools faidx hg38.fa
-curl -LO https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_44/gencode.v44.annotation.gtf.gz
-
-# Prebuilt bowtie2 index. Building it yourself takes ~3 h and ~8 GB RAM;
-# there is no reason to. Confirm the current link on the Bowtie 2 homepage.
-mkdir -p bowtie2 && cd bowtie2
-curl -LO https://genome-idx.s3.amazonaws.com/bt/GRCh38_noalt_as.zip
-unzip GRCh38_noalt_as.zip && cd ../..
+```
+samtools --version | head -1
+macs2 --version
+cooler --version
+python -c "import cooltools, bioframe, pysam; print('ok')"
 ```
 
-Then point `config/config.yaml` at what you actually downloaded:
+## 2. Download (~35 GB, the long pole)
 
-```yaml
-genome:
-  fasta: refs/hg38.fa
-  bowtie2_index: refs/bowtie2/GRCh38_noalt_as/GRCh38_noalt_as
-  chromsizes: refs/hg38.chrom.sizes
-  gtf: refs/gencode.v44.annotation.gtf.gz
 ```
-
-The no-alt analysis set uses UCSC-style `chr` names, which matches
-`hg38.chrom.sizes`, the GENCODE GTF, and the 4DN matrix. Mixing an Ensembl-named
-index (`1`, `2`, …) into this stack is the most common way to get a silently
-empty TSS profile.
-
-## 3. Download data
-
-```bash
 cd scripts && bash 00_download.sh && cd ..
 ```
 
-Sanity check before committing to Stage 1:
+This fetches ENCODE's filtered ATAC alignments, the 4DN Hi-C matrix, hg38
+chrom.sizes, the GENCODE GTF, and the genome FASTA (needed only for GC-phasing
+the compartment eigenvector).
 
-```bash
-cooler ls data/hic/GM12878.mcool      # should list several resolutions
-ls -lh data/atac/*.fastq.gz
+Sanity check before proceeding:
+
+```
+cooler ls data/hic/GM12878.mcool
+samtools idxstats data/atac/ENCSR637XSC.bam | head -3
+zcat refs/gencode.v44.annotation.gtf.gz | grep -v '^#' | cut -f1 | sort -u | head -3
 ```
 
-## 4. Stage 1 — ATAC
+The BAM and the GTF must agree on chromosome naming — both `chr1`-style. A
+mismatch here is the single most common cause of a flat TSS profile.
 
-```bash
+## 3. Stage 1 — ATAC
+
+```
 cd scripts
-THREADS=8 bash 01_atac_align.sh \
-  ../data/atac/<R1>.fastq.gz ../data/atac/<R2>.fastq.gz GM12878
+THREADS=8 bash 01_atac_prepare.sh ../data/atac/ENCSR637XSC.bam GM12878
 cd ..
-python scripts/02_atac_qc.py --config config/config.yaml --sample GM12878
+python scripts/02_atac_qc.py --sample GM12878
 cat results/atac_qc.json
 ```
 
-**Stop and read the QC before going further.** Targets: TSS enrichment ≥ 5
-(ideal ≥ 7), FRiP ≥ 0.2, and a fragment-size plot with a sub-100 bp peak plus a
-visible ~200 bp shoulder. If TSS enrichment comes back near 1.0, the cause is
-almost always chromosome-name mismatch between the GTF and the BAM, not a bad
-library — check `samtools idxstats` output against the GTF's first column.
+Read the QC before continuing. Targets: TSS enrichment >= 5 (ideal >= 7),
+FRiP >= 0.2, and a fragment-size plot with a sub-100 bp peak plus a visible
+~200 bp shoulder.
 
-## 5. Stage 2 — Hi-C
+If TSS enrichment comes back near 1.0, it is almost always chromosome naming,
+not a bad library.
 
-```bash
+Optional cross-check against ENCODE's own peak calls:
+
+```
+bedtools jaccard -a <(sort -k1,1 -k2,2n results/atac/GM12878_peaks.narrowPeak) \
+                 -b <(zcat data/atac/ENCFF748UZH.bed.gz | sort -k1,1 -k2,2n)
+```
+
+## 4. Stage 2 — Hi-C
+
+```
 python scripts/04_hic_features.py --mcool data/hic/GM12878.mcool
 cat results/hic_qc.json
 ```
 
-If it errors on a missing `weight` column, the matrix is unbalanced:
-`cooler balance -p 8 data/hic/GM12878.mcool::/resolutions/10000`.
+If it errors on a missing `weight` column the matrix is unbalanced:
 
-Optional read-level demo (download a `.pairs` file from the same 4DN experiment
-set first):
-
-```bash
-cd scripts && THREADS=8 bash 03_hic_pairs_demo.sh ../data/hic/<accession>.pairs.gz && cd ..
+```
+cooler balance -p 8 data/hic/GM12878.mcool::/resolutions/10000
 ```
 
-## 6. Stage 3 — Integration
+## 5. Stage 3 — Integration
 
-Set `rna.encode_quantification` in `config.yaml` to a downloaded GM12878 polyA
-RNA-seq gene-quantification TSV first — without it the "expressed promoter"
-framing isn't supported and the script says so.
+Set `rna.encode_quantification` in `config/config.yaml` to a downloaded GM12878
+polyA RNA-seq gene-quantification TSV first. Without it the script falls back to
+all protein-coding TSS and says so.
 
-```bash
+```
 python scripts/05_integrate.py --mcool data/hic/GM12878.mcool
 cat results/integration.json
 ```
 
-Expected shape of the result: median `log2_vs_null` clearly above 0, and
-`median_within_boundary` > `median_across_boundary`. If enrichment is ~0, check
-that `expected_cis.parquet` was written by Stage 2 and that `min_peak_tss_distance`
-is at least two bins.
+Expected shape: median `log2_vs_null` clearly above 0, and
+`median_within_boundary` > `median_across_boundary`.
 
-## 7. Commit
+## 6. Commit results
 
-```bash
-git add -A
-git commit -m "ATAC + Hi-C processing, QC, and peak-to-promoter contact analysis"
+```
+git add results/*.json results/figures
+git commit -m "Add ATAC QC, Hi-C features, and peak-to-promoter integration results"
 git push
 ```
 
-`.gitignore` excludes raw data, BAMs, and matrices but **keeps**
-`results/*.json` and `results/figures/`. Commit those — a reviewer should see
-your TSS enrichment plot and your integration statistics without downloading
-40 GB or running anything.
+Then paste the actual numbers into the README under a short "Results" heading.
+That is what makes the repo evidence rather than scaffolding.
+
+## 7. Reclaim disk
+
+```
+rm -rf data refs
+rm -f results/atac/*.bam results/atac/*.bai results/atac/*.bed results/atac/*.bed.gz*
+rm -f results/hic/*.parquet
+conda clean -a -y
+du -sh .
+```
+
+Should come back under 5 MB. Everything removed is regenerable from the scripts,
+which is the point of keeping the pipeline in version control.

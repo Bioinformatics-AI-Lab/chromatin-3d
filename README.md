@@ -40,7 +40,7 @@ chromatin-3d/
 ├── config/config.yaml          # accessions, genome, resolutions, thresholds
 ├── scripts/
 │   ├── 00_download.sh          # fetch ENCODE + 4DN inputs
-│   ├── 01_atac_align.sh        # FASTQ → filtered, Tn5-shifted cut sites → peaks
+│   ├── 01_atac_prepare.sh      # ENCODE BAM → Tn5-shifted cut sites → peaks
 │   ├── 02_atac_qc.py           # TSS enrichment, FRiP, fragment-size periodicity
 │   ├── 03_hic_pairs_demo.sh    # pairtools parse/sort/dedup on subsampled pairs
 │   ├── 04_hic_features.py      # ICE balancing, distance decay, compartments, insulation
@@ -56,18 +56,23 @@ chromatin-3d/
 Each stage is independently runnable and each has an explicit claim it supports. If you
 only have a day, do Stage 1 and Stage 3.
 
-### Stage 1 — ATAC-seq from raw reads (`01_atac_align.sh`, `02_atac_qc.py`)
+### Stage 1 — ATAC-seq (`01_atac_prepare.sh`, `02_atac_qc.py`)
 
-Input: paired-end FASTQ, ENCODE `ENCSR637XSC` (bulk ATAC-seq, GM12878, ENCODE4, Snyder lab).
+Input: ENCODE `ENCSR637XSC` (bulk ATAC-seq, GM12878, ENCODE4, Snyder lab), starting from
+the **filtered, deduplicated alignments** rather than FASTQ.
 
-1. `bowtie2 --very-sensitive -X 2000` — the large `-X` matters; the default maximum insert
-   size truncates the di- and tri-nucleosomal fragments you need for QC.
-2. Filter: MAPQ ≥ 30, properly paired, drop `chrM` (mitochondrial reads routinely consume
-   20–80% of an ATAC library and are pure background), mark and remove duplicates.
-3. **Tn5 shift**: `+4` on the plus strand, `−5` on the minus strand. The informative
+That choice is deliberate. Read alignment is the most resource-hungry step here and the
+least assay-specific one — ENCODE's pipeline is the reference standard for ATAC-seq, and
+rerunning `bowtie2` would demonstrate nothing about chromatin while costing ~55 GB and
+several hours. Everything below *is* specific to ATAC-seq.
+
+1. Guard filter: MAPQ ≥ 30, properly paired, main assembly only, drop `chrM`
+   (mitochondrial reads routinely consume 20–80% of an ATAC library and are pure
+   background). Mitochondrial fraction is recorded as a QC metric before removal.
+2. **Tn5 shift**: `+4` on the plus strand, `−5` on the minus strand. The informative
    coordinate is the 5′ end of the read, offset for the 9 bp staggered cut the Tn5 dimer
    leaves. Skipping this shifts every footprint and peak summit by ~4–5 bp.
-4. Peak calling on cut sites: `macs2 callpeak --nomodel --shift -75 --extsize 150
+3. Peak calling on cut sites: `macs2 callpeak --nomodel --shift -75 --extsize 150
    --keep-dup all`. `--nomodel` because MACS2's fragment-length model is built for
    ChIP-seq and is meaningless for transposition; `--keep-dup all` because duplicates were
    already removed properly upstream.
@@ -138,23 +143,23 @@ pairs that do not cross a boundary.
 mamba env create -f environment.yml
 conda activate chromatin-3d
 
-bash scripts/00_download.sh          # ~40 GB with FASTQ; ~4 GB matrices only
-bash scripts/01_atac_align.sh
+bash scripts/00_download.sh
+bash scripts/01_atac_prepare.sh ../data/atac/ENCSR637XSC.bam
 python scripts/02_atac_qc.py
 bash scripts/03_hic_pairs_demo.sh
 python scripts/04_hic_features.py
 python scripts/05_integrate.py
 ```
 
-Compute: Stage 1 wants ~8 cores and ~32 GB and runs in a few hours. Stages 2–3 run on a
-laptop once the `.mcool` is downloaded — cooler reads ranges out of HDF5, so the full
-matrix is never in memory.
+Compute: the whole thing runs on a laptop. Peak disk is ~40 GB (mostly the Hi-C matrix and
+the genome FASTA), nearly all of which is deletable afterward; peak memory is a few GB,
+since cooler reads ranges out of HDF5 rather than loading the matrix.
 
 ## Data
 
 | Purpose | Source | Accession |
 |---|---|---|
-| Bulk ATAC-seq, GM12878 | ENCODE | `ENCSR637XSC` |
+| Bulk ATAC-seq alignments, GM12878 | ENCODE | `ENCSR637XSC` |
 | ATAC-seq peaks (reference) | ENCODE | `ENCFF748UZH` |
 | in situ Hi-C, GM12878 (`.mcool`) | 4DN | `4DNFIXP4QG5B` (set `4DNES3JX38V5`) |
 | RNA-seq, GM12878 | ENCODE | set in `config.yaml` |
@@ -167,6 +172,8 @@ accessions on the portal before a long run; 4DN and ENCODE both re-release files
 
 - Public data only. I have not run these assays and have not designed a chromatin
   experiment at the bench.
+- ATAC starts from ENCODE's filtered alignments, not from FASTQ — read alignment is
+  deliberately out of scope (see Stage 1).
 - The Hi-C stage starts from a published contact matrix, not from raw FASTQ. The
   `pairtools` stage demonstrates the read-level workflow on subsampled data.
 - Single cell type, no biological replicates, so there is no differential analysis here.

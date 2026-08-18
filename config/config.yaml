@@ -5,8 +5,7 @@
 
 genome:
   assembly: hg38
-  fasta: refs/GRCh38.primary_assembly.genome.fa
-  bowtie2_index: refs/bowtie2/GRCh38
+  fasta: refs/hg38.fa
   chromsizes: refs/hg38.chrom.sizes
   gtf: refs/gencode.v44.annotation.gtf.gz
   # autosomes + chrX; unplaced contigs distort balancing and eigenvectors
@@ -16,9 +15,9 @@ genome:
 
 atac:
   encode_experiment: ENCSR637XSC       # bulk ATAC-seq, GM12878, ENCODE4
+  # We start from ENCODE's filtered, deduplicated BAM, not FASTQ.
   reference_peaks: ENCFF748UZH         # ENCODE-processed peak set, for comparison
   min_mapq: 30
-  max_insert: 2000                     # bowtie2 -X; must exceed di-nucleosomal
   tn5_shift_plus: 4
   tn5_shift_minus: -5
   macs2_extra: "--nomodel --shift -75 --extsize 150 --keep-dup all -q 0.01 -g hs"

@@ -4,12 +4,10 @@ dependencies:
   # macs2 is not reliably packaged for py3.11+; 3.10 keeps the ENCODE-standard
   # peak caller working alongside current cooltools.
   - python=3.10
-  - bowtie2
   - samtools>=1.19
   - htslib          # bgzip, tabix
   - bedtools
   - macs2
-  - sambamba
   - deeptools
   - pairtools
   - cooler
