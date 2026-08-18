@@ -4,7 +4,7 @@ End-to-end processing, QC, and integration of chromatin accessibility (ATAC-seq)
 genome architecture (Hi-C) data, using public ENCODE and 4D Nucleome datasets in GM12878.
 
 This is a self-directed learning project. It is **not** wet-lab work and **not** production
-infrastructure — it exists to demonstrate that I can take these two assay types from raw
+infrastructure — it exists to demonstrate how to take two assay types from raw
 data (or from published contact matrices, where raw depth is prohibitive) through
 assay-specific QC to a biologically meaningful integrated result.
 
