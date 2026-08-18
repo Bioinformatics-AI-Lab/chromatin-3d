@@ -1,0 +1,13 @@
+results/*
+!results/.gitkeep
+!results/*.json
+!results/figures/
+refs/
+data/
+*.bam
+*.bai
+*.fastq.gz
+*.mcool
+*.pairs.gz
+.ipynb_checkpoints/
+__pycache__/

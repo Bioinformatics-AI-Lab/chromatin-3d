@@ -1,0 +1,46 @@
+# ---------------------------------------------------------------------------
+# Confirm every accession on the portal before a long run -- ENCODE and 4DN
+# both re-release files, and a stale accession fails hours into a download.
+# ---------------------------------------------------------------------------
+
+genome:
+  assembly: hg38
+  fasta: refs/GRCh38.primary_assembly.genome.fa
+  bowtie2_index: refs/bowtie2/GRCh38
+  chromsizes: refs/hg38.chrom.sizes
+  gtf: refs/gencode.v44.annotation.gtf.gz
+  # autosomes + chrX; unplaced contigs distort balancing and eigenvectors
+  main_chroms: [chr1, chr2, chr3, chr4, chr5, chr6, chr7, chr8, chr9, chr10,
+                chr11, chr12, chr13, chr14, chr15, chr16, chr17, chr18, chr19,
+                chr20, chr21, chr22, chrX]
+
+atac:
+  encode_experiment: ENCSR637XSC       # bulk ATAC-seq, GM12878, ENCODE4
+  reference_peaks: ENCFF748UZH         # ENCODE-processed peak set, for comparison
+  min_mapq: 30
+  max_insert: 2000                     # bowtie2 -X; must exceed di-nucleosomal
+  tn5_shift_plus: 4
+  tn5_shift_minus: -5
+  macs2_extra: "--nomodel --shift -75 --extsize 150 --keep-dup all -q 0.01 -g hs"
+  tss_flank: 2000
+  tss_core: 100                        # +/- bp treated as the TSS core
+  tss_flank_norm: 100                  # bp at each end used as the background flank
+
+hic:
+  fourdn_mcool_accession: 4DNFIXP4QG5B
+  fourdn_mcool_url: "https://4dn-open-data-public.s3.amazonaws.com/fourfront-webprod/wfoutput/d6abea45-b0bb-4154-9854-1d3075b98097/4DNFIXP4QG5B.mcool"
+  resolution: 10000
+  compartment_resolution: 100000
+  insulation_windows: [100000, 200000, 500000]
+
+rna:
+  encode_quantification: null          # set to a GM12878 polyA RNA-seq TSV accession
+  expressed_tpm_min: 1.0
+
+integrate:
+  max_peak_tss_distance: 1000000
+  min_peak_tss_distance: 20000         # below ~2 bins O/E is unstable
+  n_null_per_pair: 20
+  random_seed: 42
+
+threads: 8
