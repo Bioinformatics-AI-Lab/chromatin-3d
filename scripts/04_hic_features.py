@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import warnings
 from pathlib import Path
 
 import bioframe
@@ -23,6 +24,31 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import yaml
+
+# These come from pandas groupby calls inside cooltools/bioframe, not from this
+# code, and there is nothing to fix on our side until those packages update.
+warnings.filterwarnings("ignore", category=FutureWarning,
+                        message=".*observed=False.*")
+
+
+def jsonable(o):
+    """Coerce numpy scalars to Python types.
+
+    cooler and pandas return numpy int64/float64, which json.dumps rejects.
+    Wrapping each value individually is easy to get wrong -- one missed field
+    fails the whole write after the expensive work is already done.
+    """
+    if isinstance(o, (np.integer,)):
+        return int(o)
+    if isinstance(o, (np.floating,)):
+        return float(o)
+    if isinstance(o, (np.bool_,)):
+        return bool(o)
+    if isinstance(o, dict):
+        return {str(k): jsonable(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [jsonable(v) for v in o]
+    return o
 
 
 def open_clr(mcool: str, resolution: int) -> cooler.Cooler:
@@ -151,6 +177,7 @@ def main() -> None:
         "n_boundaries": {str(w): int(ins[f"_n_boundaries_{w}"].iloc[0])
                          for w in h["insulation_windows"]},
     }
+    summary = jsonable(summary)
     Path("results/hic_qc.json").write_text(json.dumps(summary, indent=2))
     print(json.dumps(summary, indent=2))
 
