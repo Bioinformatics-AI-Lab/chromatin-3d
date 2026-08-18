@@ -37,7 +37,7 @@ hic:
   insulation_windows: [100000, 200000, 500000]
 
 rna:
-  encode_quantification: null          # set to a GM12878 polyA RNA-seq TSV accession
+  encode_quantification: data/rna/ENCFF783VBA.tsv
   expressed_tpm_min: 1.0
 
 integrate:

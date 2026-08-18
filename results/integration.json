@@ -1,0 +1,17 @@
+{
+  "n_pairs_total": 2281273,
+  "n_zero_contact_excluded": 3372,
+  "n_pairs_finite": 2277901,
+  "median_log2_enrichment_vs_distance_matched_null": 0.1474,
+  "wilcoxon_p_on_raw_oe": 0.0,
+  "median_within_boundary": 0.5385,
+  "median_across_boundary": -0.0209,
+  "n_within_boundary": 589802,
+  "n_across_boundary": 1688099,
+  "boundary_mannwhitney_p": 0.0,
+  "spearman_peak_signal_vs_enrichment": {
+    "rho": -0.0243,
+    "p": 1.1277860588979035e-293,
+    "note": "n is large enough that a negligible rho is highly significant; the effect size is what matters"
+  }
+}

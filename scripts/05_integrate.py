@@ -118,9 +118,10 @@ def main() -> None:
     ins = pd.read_parquet("results/hic/insulation.parquet")
     bcol = f"is_boundary_{h['insulation_windows'][1]}"
     boundaries = {c: np.sort(d.loc[d[bcol].fillna(False), "start"].values)
-                  for c, d in ins.groupby("chrom")} if bcol in ins else {}
+                  for c, d in ins.groupby("chrom", observed=True)} if bcol in ins else {}
 
-    offsets = clr.bins()[:].groupby("chrom").apply(lambda d: d.index.min()).to_dict()
+    offsets = (clr.bins()[:].reset_index().groupby("chrom", observed=True)["index"]
+               .min().to_dict())
     mat_cache: dict = {}
     records = []
 
@@ -169,18 +170,31 @@ def main() -> None:
                     "crosses_boundary": crosses,
                 })
 
-    df = pd.DataFrame(records).dropna(subset=["log2_vs_null"])
-    df.to_parquet("results/peak_tss_contacts.parquet")
-    print(f"{len(df):,} peak-TSS pairs tested")
+    df = pd.DataFrame(records)
 
-    w = stats.wilcoxon(df.oe, df.oe_null)
+    # A pair with zero observed contact gives log2(0) = -inf. Dropping those
+    # silently would bias the enrichment estimate upward, since they are exactly
+    # the pairs with the least contact. Count them and report the count next to
+    # the statistic computed on the finite remainder.
+    df["log2_vs_null"] = df["log2_vs_null"].replace([np.inf, -np.inf], np.nan)
+    n_zero = int(df["log2_vs_null"].isna().sum())
+    df.to_parquet("results/peak_tss_contacts.parquet")
+    full = df
+    df = df.dropna(subset=["log2_vs_null"])
+    print(f"{len(df):,} peak-TSS pairs with finite enrichment; "
+          f"{n_zero:,} zero-contact pairs excluded from log-ratio statistics")
+
+    # Wilcoxon runs on raw O/E, so it is unaffected by the log and uses every
+    # pair, including the zero-contact ones.
+    w = stats.wilcoxon(full.oe, full.oe_null)
     within = df.loc[~df.crosses_boundary, "log2_vs_null"]
     across = df.loc[df.crosses_boundary, "log2_vs_null"]
     mw = stats.mannwhitneyu(within, across, alternative="greater")
     rho = stats.spearmanr(df.peak_signal, df.log2_vs_null)
 
     summary = {
-        "n_pairs": int(len(df)),
+        "n_pairs_finite": int(len(df)),
+        "n_zero_contact_excluded": n_zero,
         "median_log2_enrichment_vs_distance_matched_null":
             round(float(df.log2_vs_null.median()), 4),
         "wilcoxon_p": float(w.pvalue),
@@ -188,7 +202,9 @@ def main() -> None:
         "median_across_boundary": round(float(across.median()), 4),
         "boundary_mannwhitney_p": float(mw.pvalue),
         "spearman_peak_signal_vs_enrichment": {
-            "rho": round(float(rho.statistic), 4), "p": float(rho.pvalue)},
+            "rho": round(float(rho.statistic), 4), "p": float(rho.pvalue),
+            "note": "n is large enough that a negligible rho is highly "
+                    "significant; the effect size is what matters"},
     }
     Path("results/integration.json").write_text(json.dumps(summary, indent=2))
     print(json.dumps(summary, indent=2))
@@ -198,7 +214,9 @@ def main() -> None:
     ax[0].axvline(0, c="grey", ls=":")
     ax[0].set(xlabel="log2(O/E vs distance-matched null)", ylabel="peak-TSS pairs",
               title="contact enrichment")
-    ax[1].boxplot([within.dropna(), across.dropna()], labels=["within", "across"],
+    ax[1].boxplot([within.values, across.values],
+                  tick_labels=[f"within\n(n={len(within):,})",
+                               f"across\n(n={len(across):,})"],
                   showfliers=False)
     ax[1].axhline(0, c="grey", ls=":")
     ax[1].set(ylabel="log2 enrichment", title="insulation boundary between peak and TSS")
