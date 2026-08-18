@@ -1,0 +1,9 @@
+{
+  "sample": "GM12878",
+  "tss_enrichment": 11.883,
+  "tss_enrichment_pass": true,
+  "frip": 0.4387,
+  "frip_pass": true,
+  "nucleosome_signal": 0.792,
+  "n_peaks": 236397
+}
