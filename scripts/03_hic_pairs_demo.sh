@@ -10,7 +10,7 @@ OUT=../results/hic; mkdir -p "$OUT"
 CHROMSIZES=../refs/hg38.chrom.sizes
 N=5000000
 
-zcat "$PAIRS_IN" | head -n "$N" | bgzip -c > "$OUT/sub.pairs.gz"
+gunzip -c "$PAIRS_IN" | head -n "$N" | bgzip -c > "$OUT/sub.pairs.gz"
 
 # Sort by (chrom1, chrom2, pos1, pos2), then deduplicate. Optical/PCR duplicates
 # in Hi-C are identified by the full 4-tuple of positions AND strands -- two

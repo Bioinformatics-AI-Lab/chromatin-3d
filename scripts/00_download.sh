@@ -42,13 +42,26 @@ cooler ls ../data/hic/GM12878.mcool
 
 # --- References ------------------------------------------------------------
 cd ../refs
-[ -f hg38.chrom.sizes ] || curl -sL --retry 3 -O https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.chrom.sizes
+[ -f hg38.chrom.sizes ] || curl -fL --retry 3 -O https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.chrom.sizes
 [ -f gencode.v44.annotation.gtf.gz ] || \
-  curl -sL --retry 3 -O https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_44/gencode.v44.annotation.gtf.gz
+  curl -fL --retry 3 -O https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_44/gencode.v44.annotation.gtf.gz
 # The FASTA is needed only for GC-phasing the compartment eigenvector (Stage 2).
 if [ ! -f hg38.fa ]; then
   curl -L --retry 3 -C - -O https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz
   gunzip hg38.fa.gz
 fi
 [ -f hg38.fa.fai ] || samtools faidx hg38.fa
-echo "Downloads complete."
+cd ..
+
+# Index the BAM -- without it every samtools range query falls back to a full
+# scan of a 7 GB file.
+[ -f data/atac/${BAM_ACC}.bam.bai ] || samtools index -@ "${THREADS:-8}" data/atac/${BAM_ACC}.bam
+
+# Verify everything landed. curl -f above makes HTTP errors fatal, but a
+# truncated or empty file still needs catching before hours of downstream work.
+for f in data/atac/${BAM_ACC}.bam data/hic/GM12878.mcool \
+         refs/hg38.chrom.sizes refs/gencode.v44.annotation.gtf.gz refs/hg38.fa; do
+  [ -s "../$f" ] || [ -s "$f" ] || { echo "MISSING or empty: $f"; exit 1; }
+done
+gunzip -t refs/gencode.v44.annotation.gtf.gz
+echo "Downloads complete and verified."

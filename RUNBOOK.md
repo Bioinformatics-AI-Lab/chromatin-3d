@@ -36,6 +36,10 @@ python -c "import cooltools, bioframe, pysam; print('ok')"
 
 ## 2. Download (~35 GB, the long pole)
 
+Note: use `gunzip -c`, not `zcat`, anywhere you decompress by hand. BSD `zcat`
+on macOS appends `.Z` and only handles compress-format files, so it fails on
+`.gz` input with a confusing "can't stat" error.
+
 ```
 cd scripts && bash 00_download.sh && cd ..
 ```
@@ -49,7 +53,7 @@ Sanity check before proceeding:
 ```
 cooler ls data/hic/GM12878.mcool
 samtools idxstats data/atac/ENCFF962FMH.bam | head -3
-zcat refs/gencode.v44.annotation.gtf.gz | grep -v '^#' | cut -f1 | sort -u | head -3
+gunzip -c refs/gencode.v44.annotation.gtf.gz | grep -v '^#' | cut -f1 | sort -u | head -3
 ```
 
 The BAM and the GTF must agree on chromosome naming — both `chr1`-style. A
@@ -76,7 +80,7 @@ Optional cross-check against ENCODE's own peak calls:
 
 ```
 bedtools jaccard -a <(sort -k1,1 -k2,2n results/atac/GM12878_peaks.narrowPeak) \
-                 -b <(zcat data/atac/ENCFF748UZH.bed.gz | sort -k1,1 -k2,2n)
+                 -b <(gunzip -c data/atac/ENCFF748UZH.bed.gz | sort -k1,1 -k2,2n)
 ```
 
 ## 4. Stage 2 — Hi-C
