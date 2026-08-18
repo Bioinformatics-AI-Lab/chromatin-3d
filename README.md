@@ -33,6 +33,88 @@ reaching for an RNA-seq idiom that does not transfer.
 
 ---
 
+## Results
+
+All numbers below are from the committed JSON in `results/`. Figures are in
+`results/figures/`.
+
+### ATAC-seq QC (GM12878, ENCODE `ENCFF962FMH`)
+
+| Metric | Value | Threshold |
+|---|---|---|
+| TSS enrichment | **11.88** | ENCODE hg38: ≥5 acceptable, ≥7 ideal |
+| FRiP | **0.439** | >0.2 typical for bulk |
+| Nucleosome signal (mono/NFR) | 0.792 | — |
+| Peaks called | 236,397 | ENCODE's own set: ~278,000 |
+| Tn5-shifted cut sites | 163M | — |
+
+The fragment-size distribution shows the expected nucleosome-free peak below
+100 bp with ~200 bp periodicity, so nucleosome structure survived transposition.
+Peak count is within 15% of ENCODE's published set for this cell line, called
+independently with different parameters.
+
+### Hi-C structure (4DN `4DNFIXP4QG5B`, 10 kb)
+
+| Metric | Value |
+|---|---|
+| Bins / non-zero pixels | 308,837 / 1.57 × 10⁹ |
+| A-compartment fraction | 0.43 |
+| Insulation boundaries (100 / 200 / 500 kb window) | 7,465 / 5,203 / 3,024 |
+
+Boundary counts are reported at three window sizes rather than one. Boundary
+calls are strongly scale-dependent and concordance between callers is poor;
+presenting a single window as ground truth would claim more than the data
+supports.
+
+### Integration: do accessible peaks contact expressed promoters?
+
+2,281,273 peak–TSS pairs within 1 Mb, each compared against 20 distance-matched
+null pairs drawn at the same bin separation on the same chromosome.
+
+| | median log2(O/E vs null) | n |
+|---|---|---|
+| **All pairs** | **+0.147** | 2,277,901 |
+| Within an insulation boundary | **+0.539** | 589,802 |
+| Crossing an insulation boundary | **−0.021** | 1,688,099 |
+
+Accessible regions contact promoters roughly 45% above distance-matched
+background when no insulation boundary intervenes, and at essentially background
+when one does (Mann–Whitney p < 1e-300). The insulation boundaries and the ATAC
+peaks were called independently in this pipeline, so the agreement between them
+is not built in by construction.
+
+The distance-matched null is what makes this interpretable. Contact frequency
+falls steeply with genomic separation and ATAC peaks cluster near promoters, so
+peak–TSS pairs are systematically closer than random pairs. Comparing raw
+contact frequency would recover the distance-decay curve and mislabel it
+regulation.
+
+**A null result, reported as such.** Peak signal strength does not predict
+contact enrichment: Spearman rho = −0.024. The p-value is 1e-293, which is a
+consequence of n ≈ 2.3 million rather than evidence of an effect. Accessibility
+magnitude and 3D proximity appear to be close to independent here.
+
+### Limitations
+
+- **One cell line, no biological replicates.** No differential analysis is
+  attempted. Comparative Hi-C has no settled framework equivalent to DESeq2, and
+  presenting feature-set overlap as a statistical test would be misleading.
+- **RNA and ATAC come from different ENCODE eras.** The quantification
+  (`ENCFF783VBA`, ENCODE2-era total RNA-seq) retained only 9,383 of ~20,000
+  protein-coding TSS at TPM ≥ 1 — lower than expected for a lymphoblastoid line,
+  and most likely a protocol-era mismatch rather than biology. A matched
+  ENCODE4 polyA quantification would be the better input.
+- **Zero-contact pairs.** 3,372 pairs (0.15%) had zero observed contact and are
+  excluded from log-ratio statistics; the Wilcoxon test runs on raw O/E and
+  includes them. At this fraction the exclusion does not move the estimates, but
+  dropping them silently would bias enrichment upward.
+- **One Hi-C replicate, one ATAC replicate.** The ATAC experiment has three
+  isogenic replicates; this analysis uses one.
+- **Public data only.** No wet-lab work, and no chromatin experiment designed at
+  the bench.
+
+---
+
 ## What's here
 
 ```
