@@ -48,7 +48,7 @@ Sanity check before proceeding:
 
 ```
 cooler ls data/hic/GM12878.mcool
-samtools idxstats data/atac/ENCSR637XSC.bam | head -3
+samtools idxstats data/atac/ENCFF962FMH.bam | head -3
 zcat refs/gencode.v44.annotation.gtf.gz | grep -v '^#' | cut -f1 | sort -u | head -3
 ```
 
@@ -59,7 +59,7 @@ mismatch here is the single most common cause of a flat TSS profile.
 
 ```
 cd scripts
-THREADS=8 bash 01_atac_prepare.sh ../data/atac/ENCSR637XSC.bam GM12878
+THREADS=8 bash 01_atac_prepare.sh ../data/atac/ENCFF962FMH.bam GM12878
 cd ..
 python scripts/02_atac_qc.py --sample GM12878
 cat results/atac_qc.json

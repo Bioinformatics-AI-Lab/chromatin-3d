@@ -144,7 +144,7 @@ mamba env create -f environment.yml
 conda activate chromatin-3d
 
 bash scripts/00_download.sh
-bash scripts/01_atac_prepare.sh ../data/atac/ENCSR637XSC.bam
+bash scripts/01_atac_prepare.sh ../data/atac/ENCFF962FMH.bam
 python scripts/02_atac_qc.py
 bash scripts/03_hic_pairs_demo.sh
 python scripts/04_hic_features.py
@@ -159,8 +159,14 @@ since cooler reads ranges out of HDF5 rather than loading the matrix.
 
 | Purpose | Source | Accession |
 |---|---|---|
-| Bulk ATAC-seq alignments, GM12878 | ENCODE | `ENCSR637XSC` |
+| Bulk ATAC-seq alignments, GM12878 | ENCODE | `ENCSR637XSC` / `ENCFF962FMH` |
 | ATAC-seq peaks (reference) | ENCODE | `ENCFF748UZH` |
+
+File accessions are pinned rather than resolved by output type: ENCODE stores several
+files per type (one per replicate pair, and one per pipeline version), so type-based
+selection is not reproducible across runs. The ATAC experiment has three isogenic
+replicates and this analysis uses one — sufficient for QC and for the integration
+analysis, which does not compare conditions.
 | in situ Hi-C, GM12878 (`.mcool`) | 4DN | `4DNFIXP4QG5B` (set `4DNES3JX38V5`) |
 | RNA-seq, GM12878 | ENCODE | set in `config.yaml` |
 

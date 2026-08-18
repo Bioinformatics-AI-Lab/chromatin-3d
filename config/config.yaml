@@ -16,7 +16,11 @@ genome:
 atac:
   encode_experiment: ENCSR637XSC       # bulk ATAC-seq, GM12878, ENCODE4
   # We start from ENCODE's filtered, deduplicated BAM, not FASTQ.
-  reference_peaks: ENCFF748UZH         # ENCODE-processed peak set, for comparison
+  # Accessions are pinned: ENCODE stores several files per output_type
+  # (per replicate pair, per pipeline version), so selecting by type is
+  # non-deterministic. This experiment has 3 isogenic replicates; we use one.
+  alignments: ENCFF962FMH              # filtered, deduplicated BAM (rep 1)
+  reference_peaks: ENCFF748UZH         # ENCODE pseudoreplicated peaks, for comparison
   min_mapq: 30
   tn5_shift_plus: 4
   tn5_shift_minus: -5
